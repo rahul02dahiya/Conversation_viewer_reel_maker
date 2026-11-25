@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReceptionMonk – AI Receptionist Reel</title>
+    <link rel="stylesheet" href="./css/variables.css" />
+    <link rel="stylesheet" href="./css/layout.css" />
+    <link rel="stylesheet" href="./css/components.css" />
+    <link rel="stylesheet" href="./css/animation.css" />
+</head>
+<body class="preview-mode">
+    <div class="stage-viewport" id="stage-viewport">
+        <main class="reel-stage" id="reel-stage" data-call-state="initial" data-active-speaker="none">
+            <header class="reel-header">
+                <div class="brand-title">Reception<span class="brand-accent">Monk</span></div>
+                <div class="brand-subtitle">AI Receptionist</div>
+            </header>
+
+            <section class="participant-block" aria-label="ReceptionMonk AI">
+                <div class="avatar-ring avatar-ring--ai">
+                    <img id="ai-logo" src="./assets/favicon.svg" alt="ReceptionMonk Logo" />
+                </div>
+                <div class="participant-label">ReceptionMonk AI</div>
+                <div class="waveform-slot" id="ai-waveform"></div>
+            </section>
+
+            <section class="call-indicator-block" aria-label="Call status">
+                <div class="call-dots" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span>
+                </div>
+                <div class="call-circle">
+                    <svg class="call-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" />
+                    </svg>
+                </div>
+                <div class="call-dots" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span>
+                </div>
+                <span class="call-status-text" id="call-status-text">Incoming Call</span>
+            </section>
+
+            <section class="participant-block" aria-label="Customer">
+                <div class="avatar-ring avatar-ring--customer">
+                    <img src="./assets/customer-avatar.svg" alt="Customer" />
+                </div>
+                <div class="participant-label">Customer</div>
+                <div class="waveform-slot" id="customer-waveform"></div>
+            </section>
+        </main>
+    </div>
+
+    <aside class="preview-controls" aria-label="Preview controls">
+        <div class="controls-row">
+            <button id="play-btn" disabled>Play</button>
+            <button id="restart-btn" disabled>Restart</button>
+            <span class="controls-meta" id="time-display">0:00.00 / 0:00.00</span>
+        </div>
+        <input id="scrubber" type="range" min="0" max="1" step="0.0333" value="0" disabled />
+        <div class="controls-status" id="status">Initializing...</div>
+        <div class="controls-error" id="error" hidden></div>
+    </aside>
+
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+/* Deterministic state styling driven by data-call-state & JS progress */
+
+.reel-stage[data-call-state="initial"] .call-circle {
+    background-color: var(--muted-color);
+    box-shadow: 0 0 0 14px rgba(218, 220, 224, 0.28);
+}
+
+.reel-stage[data-call-state="connecting"] .call-circle {
+    background-color: var(--call-connected-color);
+    opacity: var(--connecting-pulse, 0.75);
+    transform: scale(var(--connecting-scale, 1));
+    box-shadow: 0 0 0 16px rgba(52, 168, 83, 0.16);
+}
+
+.reel-stage[data-call-state="connected"] .call-circle,
+.reel-stage[data-call-state="conversation"] .call-circle {
+    background-color: var(--call-connected-color);
+    box-shadow: 0 0 0 16px rgba(52, 168, 83, 0.16);
+}
+
+.reel-stage[data-call-state="connected"] .call-status-text,
+.reel-stage[data-call-state="conversation"] .call-status-text {
+    color: var(--call-connected-color);
+}
+
+.reel-stage[data-active-speaker="customer"] .avatar-ring--customer {
+    border-color: var(--customer-color);
+    background-color: rgba(66, 133, 244, 0.1);
+}
+
+.reel-stage[data-active-speaker="ai"] .avatar-ring--ai {
+    border-color: var(--brand-orange);
+    background-color: rgba(249, 115, 22, 0.1);
+}
+
+.reel-stage[data-call-state="ended"] .call-circle {
+    background-color: var(--muted-color);
+    box-shadow: 0 0 0 14px rgba(218, 220, 224, 0.22);
+    opacity: calc(1 - 0.35 * var(--ended-progress, 1));
+}

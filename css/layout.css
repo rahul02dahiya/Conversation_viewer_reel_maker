@@ -1,0 +1,111 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--background-color);
+    color: var(--brand-black);
+    -webkit-font-smoothing: antialiased;
+}
+
+body.preview-mode {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
+    gap: 12px;
+    background-color: #eceff1;
+}
+
+body.render-mode {
+    overflow: hidden;
+    background-color: var(--background-color);
+}
+
+.stage-viewport {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.preview-mode .stage-viewport {
+    width: min(92vw, calc(78dvh * 9 / 16));
+    max-height: 78dvh;
+    aspect-ratio: 9 / 16;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(28, 28, 28, 0.14);
+}
+
+body.render-mode .stage-viewport {
+    width: 1080px;
+    height: 1920px;
+}
+
+.reel-stage {
+    width: 1080px;
+    height: 1920px;
+    background-color: var(--background-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    padding: 72px 72px 80px;
+    transform-origin: top left;
+    flex-shrink: 0;
+}
+
+body.preview-mode .reel-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: scale(var(--preview-scale, 0.35));
+}
+
+.reel-header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.participant-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    width: 100%;
+}
+
+.call-indicator-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.preview-controls {
+    width: min(94vw, 520px);
+    background: var(--brand-white);
+    border: 1px solid var(--muted-color);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+body.render-mode .preview-controls {
+    display: none;
+}
