@@ -56,9 +56,11 @@ const aiWaveform = createWaveform(aiContainer, {
 
 let audioCtx = null;
 let audioBuffer = null;
+let ringBuffer = null;
 let analyser = null;
 let callTimeline = null;
 let sourceNode = null;
+let ringSourceNode = null;
 let isPlaying = false;
 let playbackStartCtxTime = 0;
 let currentOffset = 0;
@@ -89,7 +91,9 @@ function renderAtTime(t) {
         reelStage.style.setProperty("--ended-progress", callState.progress.toFixed(3));
     }
 
-    callStatusText.textContent = callState.label;
+    if (callStatusText) {
+        callStatusText.textContent = callState.label;
+    }
     customerWaveform.render(audioState.customer);
     aiWaveform.render(audioState.ai);
 
@@ -109,6 +113,13 @@ function stopPlayback() {
         } catch {}
         sourceNode.disconnect();
         sourceNode = null;
+    }
+    if (ringSourceNode) {
+        try {
+            ringSourceNode.stop();
+        } catch {}
+        ringSourceNode.disconnect();
+        ringSourceNode = null;
     }
     if (rafId !== null) {
         cancelAnimationFrame(rafId);
@@ -145,6 +156,19 @@ async function startPlayback() {
     const startOffset = ANIMATION_CONFIG.audio.startOffset;
     const startDelay = Math.max(0, startOffset - currentOffset);
     const audioOffset = Math.max(0, currentOffset - startOffset);
+
+    if (ringBuffer && currentOffset < startOffset) {
+        const ringRemaining = Math.min(ringBuffer.duration, startOffset) - currentOffset;
+        if (ringRemaining > 0) {
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.value = ANIMATION_CONFIG.audio.ringVolume ?? 0.6;
+            ringSourceNode = audioCtx.createBufferSource();
+            ringSourceNode.buffer = ringBuffer;
+            ringSourceNode.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            ringSourceNode.start(audioCtx.currentTime, currentOffset, ringRemaining);
+        }
+    }
 
     if (audioOffset < audioBuffer.duration) {
         sourceNode = audioCtx.createBufferSource();
@@ -193,6 +217,18 @@ async function init() {
         audioCtx = loaded.audioCtx;
         audioBuffer = loaded.audioBuffer;
 
+        if (ANIMATION_CONFIG.audio.ringFilePath) {
+            try {
+                const ringRes = await fetch(ANIMATION_CONFIG.audio.ringFilePath);
+                if (ringRes.ok) {
+                    const ringArr = await ringRes.arrayBuffer();
+                    ringBuffer = await audioCtx.decodeAudioData(ringArr);
+                }
+            } catch {
+                ringBuffer = null;
+            }
+        }
+
         const validated = validateConversation(conversation, audioBuffer.duration);
         analyser = createAudioAnalyser(audioBuffer, validated, {
             startOffset: ANIMATION_CONFIG.audio.startOffset,
@@ -220,6 +256,8 @@ async function init() {
             audioFile: ANIMATION_CONFIG.audio.filePath,
             audioStartOffset: ANIMATION_CONFIG.audio.startOffset,
             audioDuration: audioBuffer.duration,
+            ringFile: ANIMATION_CONFIG.audio.ringFilePath || null,
+            ringVolume: ANIMATION_CONFIG.audio.ringVolume ?? 0.6,
             totalDuration: callTimeline.totalDuration,
         };
         window.__REEL_READY__ = true;

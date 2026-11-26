@@ -58,8 +58,9 @@ body.render-mode .stage-viewport {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-evenly;
-    padding: 72px 72px 80px;
+    justify-content: center;
+    gap: 52px;
+    padding: 80px 72px;
     transform-origin: top left;
     flex-shrink: 0;
 }
@@ -83,7 +84,7 @@ body.preview-mode .reel-stage {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 22px;
+    gap: 18px;
     width: 100%;
 }
 
@@ -91,7 +92,7 @@ body.preview-mode .reel-stage {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
+    gap: 16px;
 }
 
 .preview-controls {

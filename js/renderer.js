@@ -118,6 +118,8 @@ async function main() {
         const totalFrames = Math.ceil(renderDuration * meta.fps);
         const audioInputPath = path.resolve(ROOT_DIR, meta.audioFile);
         const delayMs = Math.max(0, Math.round(meta.audioStartOffset * 1000));
+        const ringInputPath = meta.ringFile ? path.resolve(ROOT_DIR, meta.ringFile) : null;
+        const hasRing = Boolean(ringInputPath && fs.existsSync(ringInputPath) && meta.audioStartOffset > 0);
 
         console.log(`Rendering ${totalFrames} frames (${renderDuration.toFixed(2)}s @ ${meta.fps}fps) -> ${opts.out}`);
 
@@ -128,7 +130,11 @@ async function main() {
             "-framerate", String(meta.fps),
             "-i", "-",
             "-i", audioInputPath,
-            "-filter_complex", `[1:a]adelay=${delayMs}|${delayMs},apad[a]`,
+            ...(hasRing ? ["-i", ringInputPath] : []),
+            "-filter_complex",
+            hasRing
+                ? `[1:a]adelay=${delayMs}|${delayMs},apad[call];[2:a]atrim=0:${meta.audioStartOffset.toFixed(3)},volume=${meta.ringVolume ?? 0.6}[ring];[ring][call]amix=inputs=2:duration=longest:normalize=0[a]`
+                : `[1:a]adelay=${delayMs}|${delayMs},apad[a]`,
             "-map", "0:v:0",
             "-map", "[a]",
             "-t", renderDuration.toFixed(3),

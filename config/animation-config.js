@@ -2,6 +2,8 @@ export const ANIMATION_CONFIG = {
     audio: {
         filePath: "./call.mp3",
         startOffset: 1.5,
+        ringFilePath: "./assets/ring.wav",
+        ringVolume: 0.6,
     },
     video: {
         width: 1080,
