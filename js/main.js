@@ -13,20 +13,31 @@ document.body.classList.toggle("preview-mode", !isRenderMode);
 
 const stageViewport = document.getElementById("stage-viewport");
 const reelStage = document.getElementById("reel-stage");
-const callStatusText = document.getElementById("call-status-text");
+const bgVideo = document.getElementById("bg-video");
+if (isRenderMode && bgVideo) {
+    bgVideo.removeAttribute("src");
+}
 const statusEl = document.getElementById("status");
 const errorEl = document.getElementById("error");
 const playBtn = document.getElementById("play-btn");
 const restartBtn = document.getElementById("restart-btn");
 const scrubber = document.getElementById("scrubber");
 const timeDisplay = document.getElementById("time-display");
-const customerContainer = document.getElementById("customer-waveform");
-const aiContainer = document.getElementById("ai-waveform");
-const aiLogo = document.getElementById("ai-logo");
+const waveformContainer = document.getElementById("central-waveform");
 
-// Apply configurable layout dimensions
 reelStage.style.setProperty("--avatar-size", `${ANIMATION_CONFIG.layout.avatarSize}px`);
-reelStage.style.setProperty("--logo-size", `${ANIMATION_CONFIG.layout.logoSize}px`);
+
+function parseCssRgb(varName) {
+    const hex = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    if (hex.startsWith("#") && hex.length === 7) {
+        return [
+            parseInt(hex.slice(1, 3), 16),
+            parseInt(hex.slice(3, 5), 16),
+            parseInt(hex.slice(5, 7), 16),
+        ];
+    }
+    return [218, 220, 224];
+}
 
 function updatePreviewScale() {
     if (isRenderMode) return;
@@ -37,21 +48,10 @@ function updatePreviewScale() {
 window.addEventListener("resize", updatePreviewScale);
 updatePreviewScale();
 
-aiLogo.addEventListener("error", () => {
-    if (!isRenderMode && errorEl.hidden) {
-        errorEl.textContent = "Missing assets/favicon.svg — place the ReceptionMonk logo at assets/favicon.svg.";
-        errorEl.hidden = false;
-    }
-});
-
 const wfConfig = ANIMATION_CONFIG.waveform;
-const customerWaveform = createWaveform(customerContainer, {
+const centralWaveform = createWaveform(waveformContainer, {
     ...wfConfig,
-    colorVar: "--customer-color",
-});
-const aiWaveform = createWaveform(aiContainer, {
-    ...wfConfig,
-    colorVar: "--brand-orange",
+    colorVar: "--muted-color",
 });
 
 let audioCtx = null;
@@ -75,27 +75,27 @@ function formatTime(sec) {
 function renderAtTime(t) {
     if (!analyser || !callTimeline) return;
     const clamped = Math.max(0, Math.min(callTimeline.totalDuration, t));
-    const callState = callTimeline.getStateAt(clamped);
-    const audioState = analyser.getStateAt(clamped);
+    const tl = callTimeline.getStateAt(clamped);
 
-    reelStage.dataset.callState = callState.state;
-    reelStage.dataset.activeSpeaker =
-        callState.state === "conversation" && audioState.activeSpeaker
-            ? audioState.activeSpeaker
-            : "none";
+    reelStage.dataset.section = tl.section;
 
-    if (callState.state === "connecting") {
-        reelStage.style.setProperty("--connecting-pulse", callState.pulse.toFixed(3));
-        reelStage.style.setProperty("--connecting-scale", callState.scale.toFixed(3));
-    } else if (callState.state === "ended") {
-        reelStage.style.setProperty("--ended-progress", callState.progress.toFixed(3));
+    if (tl.section === "opening") {
+        reelStage.style.setProperty("--shake-deg", `${tl.shakeDeg.toFixed(2)}deg`);
+        reelStage.style.setProperty("--shake-x", `${tl.shakeX.toFixed(2)}px`);
+        reelStage.style.setProperty("--opening-opacity", tl.overlayOpacity.toFixed(3));
+    } else if (tl.section === "transition" && !isRenderMode) {
+        if (!isPlaying || Math.abs(bgVideo.currentTime - tl.transitionTime) > 0.15) {
+            bgVideo.currentTime = tl.transitionTime;
+        }
+    } else if (tl.section === "conversation") {
+        reelStage.style.setProperty("--avatar-opacity", tl.avatarOpacity.toFixed(3));
+        reelStage.style.setProperty("--avatar-scale", tl.avatarScale.toFixed(3));
+        reelStage.style.setProperty("--conversation-opacity", tl.overlayOpacity.toFixed(3));
+
+        const audioState = analyser.getStateAt(clamped);
+        reelStage.dataset.activeSpeaker = audioState.activeSpeaker || "none";
+        centralWaveform.render(audioState.bars, audioState.color);
     }
-
-    if (callStatusText) {
-        callStatusText.textContent = callState.label;
-    }
-    customerWaveform.render(audioState.customer);
-    aiWaveform.render(audioState.ai);
 
     if (!isRenderMode) {
         scrubber.value = clamped.toFixed(3);
@@ -121,6 +121,9 @@ function stopPlayback() {
         ringSourceNode.disconnect();
         ringSourceNode = null;
     }
+    if (!isRenderMode) {
+        bgVideo.pause();
+    }
     if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
@@ -138,6 +141,13 @@ function tick() {
         stopPlayback();
         return;
     }
+    const tl = callTimeline.getStateAt(elapsed);
+    if (tl.section === "transition" && bgVideo.paused) {
+        bgVideo.currentTime = tl.transitionTime;
+        bgVideo.play().catch(() => {});
+    } else if (tl.section !== "transition" && !bgVideo.paused) {
+        bgVideo.pause();
+    }
     renderAtTime(elapsed);
     rafId = requestAnimationFrame(tick);
 }
@@ -153,28 +163,37 @@ async function startPlayback() {
 
     stopPlayback();
 
-    const startOffset = ANIMATION_CONFIG.audio.startOffset;
-    const startDelay = Math.max(0, startOffset - currentOffset);
-    const audioOffset = Math.max(0, currentOffset - startOffset);
+    const { ringtoneEnabled, ringtoneStart, ringtoneDuration, ringtoneVolume, conversationVolume } =
+        ANIMATION_CONFIG.audio;
+    const ringEnd = Math.min(callTimeline.openingEnd, ringtoneStart + ringtoneDuration);
 
-    if (ringBuffer && currentOffset < startOffset) {
-        const ringRemaining = Math.min(ringBuffer.duration, startOffset) - currentOffset;
-        if (ringRemaining > 0) {
-            const gainNode = audioCtx.createGain();
-            gainNode.gain.value = ANIMATION_CONFIG.audio.ringVolume ?? 0.6;
+    if (ringtoneEnabled && ringBuffer && currentOffset < ringEnd) {
+        const delay = Math.max(0, ringtoneStart - currentOffset);
+        const offset = Math.max(0, currentOffset - ringtoneStart);
+        const remaining = Math.min(ringBuffer.duration - offset, ringEnd - Math.max(currentOffset, ringtoneStart));
+        if (remaining > 0) {
+            const gain = audioCtx.createGain();
+            gain.gain.value = ringtoneVolume ?? 0.45;
             ringSourceNode = audioCtx.createBufferSource();
             ringSourceNode.buffer = ringBuffer;
-            ringSourceNode.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            ringSourceNode.start(audioCtx.currentTime, currentOffset, ringRemaining);
+            ringSourceNode.connect(gain);
+            gain.connect(audioCtx.destination);
+            ringSourceNode.start(audioCtx.currentTime + delay, offset, remaining);
         }
     }
 
-    if (audioOffset < audioBuffer.duration) {
+    const convStart = callTimeline.conversationStart;
+    const convDelay = Math.max(0, convStart - currentOffset);
+    const convOffset = Math.max(0, currentOffset - convStart);
+
+    if (convOffset < audioBuffer.duration) {
+        const gain = audioCtx.createGain();
+        gain.gain.value = conversationVolume ?? 1.0;
         sourceNode = audioCtx.createBufferSource();
         sourceNode.buffer = audioBuffer;
-        sourceNode.connect(audioCtx.destination);
-        sourceNode.start(audioCtx.currentTime + startDelay, audioOffset);
+        sourceNode.connect(gain);
+        gain.connect(audioCtx.destination);
+        sourceNode.start(audioCtx.currentTime + convDelay, convOffset);
     }
 
     playbackStartCtxTime = audioCtx.currentTime;
@@ -217,27 +236,31 @@ async function init() {
         audioCtx = loaded.audioCtx;
         audioBuffer = loaded.audioBuffer;
 
-        if (ANIMATION_CONFIG.audio.ringFilePath) {
-            try {
-                const ringRes = await fetch(ANIMATION_CONFIG.audio.ringFilePath);
-                if (ringRes.ok) {
-                    const ringArr = await ringRes.arrayBuffer();
-                    ringBuffer = await audioCtx.decodeAudioData(ringArr);
-                }
-            } catch {
-                ringBuffer = null;
+        if (ANIMATION_CONFIG.audio.ringtoneEnabled && ANIMATION_CONFIG.audio.ringFilePath) {
+            const ringRes = await fetch(ANIMATION_CONFIG.audio.ringFilePath);
+            if (!ringRes.ok) {
+                throw new Error(`Ringtone "${ANIMATION_CONFIG.audio.ringFilePath}" failed to load.`);
             }
+            ringBuffer = await audioCtx.decodeAudioData(await ringRes.arrayBuffer());
         }
 
         const validated = validateConversation(conversation, audioBuffer.duration);
-        analyser = createAudioAnalyser(audioBuffer, validated, {
-            startOffset: ANIMATION_CONFIG.audio.startOffset,
-            ...wfConfig,
-        });
         callTimeline = createCallTimeline({
-            audioStartOffset: ANIMATION_CONFIG.audio.startOffset,
+            openingHoldDuration: ANIMATION_CONFIG.video.openingHoldDuration,
+            transitionDuration: ANIMATION_CONFIG.video.transitionDuration,
+            outroHoldDuration: ANIMATION_CONFIG.video.outroHoldDuration,
             audioDuration: audioBuffer.duration,
-            callStates: ANIMATION_CONFIG.callStates,
+            avatarRevealDuration: ANIMATION_CONFIG.layout.avatarRevealDuration,
+        });
+
+        analyser = createAudioAnalyser(audioBuffer, validated, {
+            startOffset: callTimeline.conversationStart,
+            ...wfConfig,
+            colors: {
+                customer: parseCssRgb("--customer-color"),
+                ai: parseCssRgb("--brand-orange"),
+                muted: parseCssRgb("--muted-color"),
+            },
         });
 
         scrubber.max = callTimeline.totalDuration.toFixed(3);
@@ -253,12 +276,18 @@ async function init() {
             fps: ANIMATION_CONFIG.video.fps,
             width: ANIMATION_CONFIG.video.width,
             height: ANIMATION_CONFIG.video.height,
-            audioFile: ANIMATION_CONFIG.audio.filePath,
-            audioStartOffset: ANIMATION_CONFIG.audio.startOffset,
-            audioDuration: audioBuffer.duration,
-            ringFile: ANIMATION_CONFIG.audio.ringFilePath || null,
-            ringVolume: ANIMATION_CONFIG.audio.ringVolume ?? 0.6,
+            openingEnd: callTimeline.openingEnd,
+            transitionEnd: callTimeline.transitionEnd,
+            conversationStart: callTimeline.conversationStart,
             totalDuration: callTimeline.totalDuration,
+            transitionVideo: ANIMATION_CONFIG.video.transitionVideo,
+            audioFile: ANIMATION_CONFIG.audio.filePath,
+            conversationVolume: ANIMATION_CONFIG.audio.conversationVolume,
+            ringtoneEnabled: ANIMATION_CONFIG.audio.ringtoneEnabled,
+            ringFile: ANIMATION_CONFIG.audio.ringFilePath,
+            ringtoneStart: ANIMATION_CONFIG.audio.ringtoneStart,
+            ringtoneDuration: ANIMATION_CONFIG.audio.ringtoneDuration,
+            ringtoneVolume: ANIMATION_CONFIG.audio.ringtoneVolume,
         };
         window.__REEL_READY__ = true;
     } catch (err) {

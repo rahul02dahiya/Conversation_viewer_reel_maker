@@ -6,7 +6,7 @@
   "description": "ReceptionMonk AI Receptionist animated promotional reel (9:16, 1080x1920 @ 30fps)",
   "scripts": {
     "preview": "python3 -m http.server 8000",
-    "render:test": "node js/renderer.js --duration 5 --out output/preview-5s.mp4",
+    "render:test": "node js/renderer.js --duration 14 --out output/preview-test.mp4",
     "render": "node js/renderer.js"
   },
   "devDependencies": {

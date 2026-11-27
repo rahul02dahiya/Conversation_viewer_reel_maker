@@ -1,5 +1,6 @@
 import http from "node:http";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -17,6 +18,7 @@ const MIME_TYPES = {
     ".mp3": "audio/mpeg",
     ".wav": "audio/wav",
     ".ogg": "audio/ogg",
+    ".mp4": "video/mp4",
     ".png": "image/png",
     ".json": "application/json",
 };
@@ -42,7 +44,7 @@ function parseArgs(argv) {
 
 function startStaticServer(rootDir) {
     const server = http.createServer((req, res) => {
-        const cleanUrl = (req.url || "/").split("?")[0];
+        const cleanUrl = decodeURIComponent((req.url || "/").split("?")[0]);
         const relPath = cleanUrl === "/" ? "index.html" : cleanUrl.replace(/^\/+/, "");
         const filePath = path.resolve(rootDir, relPath);
 
@@ -73,6 +75,66 @@ function startStaticServer(rootDir) {
     });
 }
 
+function runFfmpeg(args) {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(ffmpegPath, args, { stdio: ["ignore", "inherit", "pipe"] });
+        let stderr = "";
+        proc.stderr.on("data", (chunk) => {
+            stderr += chunk.toString();
+        });
+        proc.on("error", reject);
+        proc.on("close", (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`ffmpeg exited with code ${code}:\n${stderr.slice(-1200)}`));
+        });
+    });
+}
+
+async function renderFramesToClip(page, { startTime, frameCount, fps, outPath, label }) {
+    const args = [
+        "-y",
+        "-f", "image2pipe",
+        "-vcodec", "png",
+        "-framerate", String(fps),
+        "-i", "-",
+        "-r", String(fps),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-preset", "fast",
+        "-crf", "12",
+        outPath,
+    ];
+
+    const ffmpeg = spawn(ffmpegPath, args, { stdio: ["pipe", "ignore", "pipe"] });
+    let stderr = "";
+    ffmpeg.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+    });
+
+    const done = new Promise((resolve, reject) => {
+        ffmpeg.on("error", reject);
+        ffmpeg.on("close", (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`ffmpeg (${label}) exited with code ${code}:\n${stderr.slice(-1000)}`));
+        });
+    });
+
+    for (let i = 0; i < frameCount; i++) {
+        const t = startTime + i / fps;
+        await page.evaluate((time) => window.renderAtTime(time), t);
+        const pngBuffer = await page.screenshot({ type: "png" });
+        if (!ffmpeg.stdin.write(pngBuffer)) {
+            await new Promise((r) => ffmpeg.stdin.once("drain", r));
+        }
+        if ((i + 1) % 30 === 0 || i + 1 === frameCount) {
+            process.stdout.write(`\r[${label}] ${i + 1}/${frameCount} frames`);
+        }
+    }
+    process.stdout.write("\n");
+    ffmpeg.stdin.end();
+    await done;
+}
+
 async function main() {
     const opts = parseArgs(process.argv.slice(2));
 
@@ -82,11 +144,23 @@ async function main() {
     if (!fs.existsSync(opts.chromePath)) {
         throw new Error(`Chrome binary not found at "${opts.chromePath}". Set CHROME_PATH or pass --chrome.`);
     }
-    if (!fs.existsSync(path.join(ROOT_DIR, "assets", "favicon.svg"))) {
-        console.warn("[warn] assets/favicon.svg not found — AI avatar will appear blank until you add it.");
+
+    const requiredAssets = [
+        "call.mp3",
+        "assets/background.mp4",
+        "assets/bg-first.png",
+        "assets/bg-last.png",
+        "assets/Glossy Blue User Badge.png",
+        "assets/Glossy Orange Meditating Monk Badge.png",
+    ];
+    for (const rel of requiredAssets) {
+        if (!fs.existsSync(path.join(ROOT_DIR, rel))) {
+            throw new Error(`Required asset missing: "${rel}"`);
+        }
     }
 
     fs.mkdirSync(path.dirname(opts.out), { recursive: true });
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rm-reel-"));
 
     const { server, port } = await startStaticServer(ROOT_DIR);
     let browser;
@@ -103,7 +177,7 @@ async function main() {
             deviceScaleFactor: 1,
         });
 
-        await page.goto(`http://127.0.0.1:${port}/?render=1`, { waitUntil: "networkidle" });
+        await page.goto(`http://127.0.0.1:${port}/?render=1`, { waitUntil: "domcontentloaded" });
         await page.waitForFunction(() => window.__REEL_READY__ || window.__REEL_ERROR__, null, { timeout: 15000 });
 
         const initError = await page.evaluate(() => window.__REEL_ERROR__ || null);
@@ -112,31 +186,103 @@ async function main() {
         }
 
         const meta = await page.evaluate(() => window.__REEL_META__);
+        const fps = meta.fps;
         const renderDuration = opts.duration && opts.duration > 0
             ? Math.min(opts.duration, meta.totalDuration)
             : meta.totalDuration;
-        const totalFrames = Math.ceil(renderDuration * meta.fps);
+
+        const secAEnd = Math.min(renderDuration, meta.openingEnd);
+        const secAFrames = Math.round(secAEnd * fps);
+
+        const secBStart = meta.openingEnd;
+        const secBEnd = Math.min(renderDuration, meta.transitionEnd);
+        const secBDur = Math.max(0, secBEnd - secBStart);
+
+        const secCStart = meta.transitionEnd;
+        const secCFrames = Math.max(0, Math.round((renderDuration - secCStart) * fps));
+
+        console.log(`Rendering ${renderDuration.toFixed(2)}s @ ${fps}fps -> ${opts.out}`);
+
+        const videoInputs = [];
+        const videoFilterParts = [];
+
+        if (secAFrames > 0) {
+            const secAPath = path.join(tmpDir, "secA.mp4");
+            await renderFramesToClip(page, {
+                startTime: 0,
+                frameCount: secAFrames,
+                fps,
+                outPath: secAPath,
+                label: "Opening",
+            });
+            videoFilterParts.push(`[${videoInputs.length}:v]setsar=1[v${videoInputs.length}]`);
+            videoInputs.push(secAPath);
+        }
+
+        if (secBDur > 0.01) {
+            const bgPath = path.resolve(ROOT_DIR, meta.transitionVideo);
+            const idx = videoInputs.length;
+            videoFilterParts.push(
+                `[${idx}:v]scale=1080:1920:flags=lanczos,fps=${fps},setsar=1,trim=duration=${secBDur.toFixed(3)},setpts=PTS-STARTPTS[v${idx}]`
+            );
+            videoInputs.push(bgPath);
+        }
+
+        if (secCFrames > 0) {
+            const secCPath = path.join(tmpDir, "secC.mp4");
+            await renderFramesToClip(page, {
+                startTime: secCStart,
+                frameCount: secCFrames,
+                fps,
+                outPath: secCPath,
+                label: "Conversation",
+            });
+            videoFilterParts.push(`[${videoInputs.length}:v]setsar=1[v${videoInputs.length}]`);
+            videoInputs.push(secCPath);
+        }
+
+        const concatInputs = videoInputs.map((_, idx) => `[v${idx}]`).join("");
+        const filterLines = [
+            ...videoFilterParts,
+            `${concatInputs}concat=n=${videoInputs.length}:v=1:a=0[v]`,
+        ];
+
         const audioInputPath = path.resolve(ROOT_DIR, meta.audioFile);
-        const delayMs = Math.max(0, Math.round(meta.audioStartOffset * 1000));
+        const convAudioIdx = videoInputs.length;
+        const allInputs = [...videoInputs, audioInputPath];
+
+        const convDelayMs = Math.max(0, Math.round(meta.conversationStart * 1000));
+        const convVol = meta.conversationVolume ?? 1.0;
+
         const ringInputPath = meta.ringFile ? path.resolve(ROOT_DIR, meta.ringFile) : null;
-        const hasRing = Boolean(ringInputPath && fs.existsSync(ringInputPath) && meta.audioStartOffset > 0);
+        const hasRing = Boolean(
+            meta.ringtoneEnabled &&
+            ringInputPath &&
+            fs.existsSync(ringInputPath) &&
+            meta.ringtoneDuration > 0
+        );
 
-        console.log(`Rendering ${totalFrames} frames (${renderDuration.toFixed(2)}s @ ${meta.fps}fps) -> ${opts.out}`);
+        if (hasRing) {
+            const ringIdx = allInputs.length;
+            allInputs.push(ringInputPath);
+            const ringDelayMs = Math.max(0, Math.round((meta.ringtoneStart ?? 0) * 1000));
+            const ringVol = meta.ringtoneVolume ?? 0.45;
+            filterLines.push(
+                `[${convAudioIdx}:a]adelay=${convDelayMs}|${convDelayMs},volume=${convVol},apad[call]`,
+                `[${ringIdx}:a]atrim=0:${meta.ringtoneDuration.toFixed(3)},adelay=${ringDelayMs}|${ringDelayMs},volume=${ringVol}[ring]`,
+                `[ring][call]amix=inputs=2:duration=longest:normalize=0[a]`
+            );
+        } else {
+            filterLines.push(`[${convAudioIdx}:a]adelay=${convDelayMs}|${convDelayMs},volume=${convVol},apad[a]`);
+        }
 
-        const ffmpegArgs = [
+        const finalArgs = [
             "-y",
-            "-f", "image2pipe",
-            "-vcodec", "png",
-            "-framerate", String(meta.fps),
-            "-i", "-",
-            "-i", audioInputPath,
-            ...(hasRing ? ["-i", ringInputPath] : []),
-            "-filter_complex",
-            hasRing
-                ? `[1:a]adelay=${delayMs}|${delayMs},apad[call];[2:a]atrim=0:${meta.audioStartOffset.toFixed(3)},volume=${meta.ringVolume ?? 0.6}[ring];[ring][call]amix=inputs=2:duration=longest:normalize=0[a]`
-                : `[1:a]adelay=${delayMs}|${delayMs},apad[a]`,
-            "-map", "0:v:0",
+            ...allInputs.flatMap((p) => ["-i", p]),
+            "-filter_complex", filterLines.join(";"),
+            "-map", "[v]",
             "-map", "[a]",
+            "-r", String(fps),
             "-t", renderDuration.toFixed(3),
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
@@ -148,39 +294,13 @@ async function main() {
             opts.out,
         ];
 
-        const ffmpeg = spawn(ffmpegPath, ffmpegArgs, { stdio: ["pipe", "inherit", "pipe"] });
-        let ffmpegStderr = "";
-        ffmpeg.stderr.on("data", (chunk) => {
-            ffmpegStderr += chunk.toString();
-        });
-
-        const ffmpegDone = new Promise((resolve, reject) => {
-            ffmpeg.on("error", reject);
-            ffmpeg.on("close", (code) => {
-                if (code === 0) resolve();
-                else reject(new Error(`ffmpeg exited with code ${code}:\n${ffmpegStderr.slice(-1000)}`));
-            });
-        });
-
-        for (let frame = 0; frame < totalFrames; frame++) {
-            const t = frame / meta.fps;
-            await page.evaluate((time) => window.renderAtTime(time), t);
-            const pngBuffer = await page.screenshot({ type: "png" });
-            if (!ffmpeg.stdin.write(pngBuffer)) {
-                await new Promise((r) => ffmpeg.stdin.once("drain", r));
-            }
-            if ((frame + 1) % 30 === 0 || frame + 1 === totalFrames) {
-                process.stdout.write(`\rProgress: ${frame + 1}/${totalFrames} frames`);
-            }
-        }
-        process.stdout.write("\n");
-        ffmpeg.stdin.end();
-        await ffmpegDone;
-
+        console.log("Assembling final MP4...");
+        await runFfmpeg(finalArgs);
         console.log(`Done! Saved ${opts.out}`);
     } finally {
         if (browser) await browser.close();
         server.close();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
     }
 }
 

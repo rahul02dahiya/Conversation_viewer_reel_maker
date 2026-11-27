@@ -52,15 +52,11 @@ body.render-mode .stage-viewport {
 }
 
 .reel-stage {
+    position: relative;
+    overflow: hidden;
     width: 1080px;
     height: 1920px;
     background-color: var(--background-color);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 52px;
-    padding: 80px 72px;
     transform-origin: top left;
     flex-shrink: 0;
 }
@@ -72,27 +68,64 @@ body.preview-mode .reel-stage {
     transform: scale(var(--preview-scale, 0.35));
 }
 
-.reel-header {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
-
-.participant-block {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 18px;
+.bg-layer {
+    position: absolute;
+    inset: 0;
     width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    z-index: 0;
 }
 
-.call-indicator-block {
+.section-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* Section A: Opening Clinic Scene */
+.opening-overlay {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    justify-content: space-between;
+    padding: 96px 64px 280px;
+}
+
+/* Section C: Conversation Split Scene */
+.conversation-overlay {
+    position: absolute;
+    inset: 0;
+}
+
+.participant-slot {
+    position: absolute;
+    top: 53%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.participant-slot--ai {
+    left: 24%;
+}
+
+.participant-slot--customer {
+    left: 76%;
+}
+
+.central-waveform-wrap {
+    position: absolute;
+    left: 50%;
+    top: 76%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .preview-controls {

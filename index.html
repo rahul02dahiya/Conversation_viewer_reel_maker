@@ -11,41 +11,54 @@
 </head>
 <body class="preview-mode">
     <div class="stage-viewport" id="stage-viewport">
-        <main class="reel-stage" id="reel-stage" data-call-state="initial" data-active-speaker="none">
-            <header class="reel-header">
-                <div class="brand-title">Reception<span class="brand-accent">Monk</span></div>
-            </header>
+        <main class="reel-stage" id="reel-stage" data-section="opening" data-active-speaker="none">
+            <!-- Background Layers -->
+            <img id="bg-first" class="bg-layer" src="./assets/bg-first.png" alt="" />
+            <video id="bg-video" class="bg-layer" src="./assets/background.mp4" muted playsinline preload="auto"></video>
+            <img id="bg-last" class="bg-layer" src="./assets/bg-last.png" alt="" />
 
-            <section class="participant-block" aria-label="ReceptionMonk AI">
-                <div class="avatar-ring avatar-ring--ai">
-                    <img id="ai-logo" src="./assets/favicon.svg" alt="ReceptionMonk Logo" />
-                </div>
-                <div class="participant-label">AI Receptionist</div>
-                <div class="waveform-slot" id="ai-waveform"></div>
-            </section>
+            <!-- Section A: Opening / Clinic Scene -->
+            <div class="section-overlay opening-overlay">
+                <header class="brand-pill">
+                    <img class="brand-pill__logo" src="./assets/favicon.svg" alt="ReceptionMonk" />
+                    <div class="brand-pill__text">
+                        <div class="brand-title">Reception<span class="brand-accent">Monk</span></div>
+                        <div class="brand-subtitle">AI Receptionist</div>
+                    </div>
+                </header>
 
-            <section class="call-indicator-block" aria-label="Call status">
-                <div class="call-dots" aria-hidden="true">
-                    <span></span><span></span><span></span><span></span>
+                <div class="incoming-call-wrap">
+                    <div class="call-circle">
+                        <svg class="call-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" />
+                        </svg>
+                    </div>
+                    <div class="call-status-pill">Incoming Call…</div>
                 </div>
-                <div class="call-circle">
-                    <svg class="call-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" />
-                    </svg>
-                </div>
-                <div class="call-dots" aria-hidden="true">
-                    <span></span><span></span><span></span><span></span>
-                </div>
-                <!-- <span class="call-status-text" id="call-status-text">Incoming Call</span> -->
-            </section>
+            </div>
 
-            <section class="participant-block" aria-label="Customer">
-                <div class="avatar-ring avatar-ring--customer">
-                    <img src="./assets/customer-avatar.svg" alt="Customer" />
+            <!-- Section C: Conversation / Split Scene -->
+            <div class="section-overlay conversation-overlay">
+                <div class="participant-slot participant-slot--ai" aria-label="AI Receptionist">
+                    <div class="badge-frame">
+                        <img src="./assets/Glossy Orange Meditating Monk Badge.png" alt="AI Receptionist" />
+                    </div>
+                    <div class="participant-label-pill">AI RECEPTIONIST</div>
                 </div>
-                <div class="participant-label">Customer</div>
-                <div class="waveform-slot" id="customer-waveform"></div>
-            </section>
+
+                <div class="participant-slot participant-slot--customer" aria-label="Customer">
+                    <div class="badge-frame">
+                        <img src="./assets/Glossy Blue User Badge.png" alt="Customer" />
+                    </div>
+                    <div class="participant-label-pill">CUSTOMER</div>
+                </div>
+
+                <div class="central-waveform-wrap">
+                    <div class="waveform-card">
+                        <div class="waveform-slot" id="central-waveform"></div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 

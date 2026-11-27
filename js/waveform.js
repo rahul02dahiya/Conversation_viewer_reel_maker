@@ -1,17 +1,17 @@
 /**
- * Reusable SVG symmetrical bar waveform component.
+ * Reusable SVG symmetrical bar waveform component with dynamic color support.
  */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 export function createWaveform(container, options) {
     const {
-        barCount = 28,
-        barWidth = 6,
-        barSpacing = 8,
-        minHeight = 6,
-        maxHeight = 96,
-        colorVar = "--customer-color",
+        barCount = 45,
+        barWidth = 10,
+        barSpacing = 10,
+        minHeight = 10,
+        maxHeight = 110,
+        colorVar = "--muted-color",
     } = options;
 
     const totalWidth = barCount * barWidth + Math.max(0, barCount - 1) * barSpacing;
@@ -31,7 +31,7 @@ export function createWaveform(container, options) {
         const x = i * (barWidth + barSpacing);
         const y = (maxHeight - minHeight) / 2;
         const normDist = center > 0 ? Math.abs(i - center) / center : 0;
-        const edgeOpacity = 1 - 0.72 * Math.pow(normDist, 1.6);
+        const edgeOpacity = 1 - 0.65 * Math.pow(normDist, 1.6);
 
         rect.setAttribute("x", String(x));
         rect.setAttribute("y", String(y));
@@ -46,13 +46,16 @@ export function createWaveform(container, options) {
 
     container.replaceChildren(svg);
 
-    function render(amplitudes) {
+    function render(amplitudes, fillColor) {
         for (let i = 0; i < bars.length; i++) {
             const amp = amplitudes ? Math.min(1, Math.max(0, amplitudes[i] ?? 0)) : 0;
             const height = minHeight + amp * (maxHeight - minHeight);
             const y = (maxHeight - height) / 2;
             bars[i].setAttribute("height", height.toFixed(2));
             bars[i].setAttribute("y", y.toFixed(2));
+            if (fillColor) {
+                bars[i].setAttribute("fill", fillColor);
+            }
         }
     }
 
