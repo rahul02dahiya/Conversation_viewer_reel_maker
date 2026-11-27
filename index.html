@@ -14,19 +14,16 @@
         <main class="reel-stage" id="reel-stage" data-section="opening" data-active-speaker="none">
             <!-- Background Layers -->
             <img id="bg-first" class="bg-layer" src="./assets/bg-first.png" alt="" />
-            <video id="bg-video" class="bg-layer" src="./assets/background.mp4" muted playsinline preload="auto"></video>
+            <video id="bg-video" class="bg-layer" src="./assets/background-clean.mp4" muted playsinline preload="auto"></video>
             <img id="bg-last" class="bg-layer" src="./assets/bg-last.png" alt="" />
+
+            <!-- Persistent Top-Left Brand Logo (30% width) -->
+            <div class="brand-corner" id="brand-corner">
+                <img src="./assets/brandLogoWithName.png" alt="ReceptionMonk" />
+            </div>
 
             <!-- Section A: Opening / Clinic Scene -->
             <div class="section-overlay opening-overlay">
-                <header class="brand-pill">
-                    <img class="brand-pill__logo" src="./assets/favicon.svg" alt="ReceptionMonk" />
-                    <div class="brand-pill__text">
-                        <div class="brand-title">Reception<span class="brand-accent">Monk</span></div>
-                        <div class="brand-subtitle">AI Receptionist</div>
-                    </div>
-                </header>
-
                 <div class="incoming-call-wrap">
                     <div class="call-circle">
                         <svg class="call-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

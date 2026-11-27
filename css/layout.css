@@ -85,12 +85,28 @@ body.preview-mode .reel-stage {
     pointer-events: none;
 }
 
+/* Persistent Top-Left Brand Logo (30% of reel width) */
+.brand-corner {
+    position: absolute;
+    top: 48px;
+    left: 48px;
+    width: 30%;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.brand-corner img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
 /* Section A: Opening Clinic Scene */
 .opening-overlay {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding: 96px 64px 280px;
 }
 
@@ -107,21 +123,21 @@ body.preview-mode .reel-stage {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: 18px;
 }
 
 .participant-slot--ai {
-    left: 24%;
+    left: 19%;
 }
 
 .participant-slot--customer {
-    left: 76%;
+    left: 81%;
 }
 
 .central-waveform-wrap {
     position: absolute;
     left: 50%;
-    top: 76%;
+    top: 50%;
     transform: translate(-50%, -50%);
     display: flex;
     align-items: center;

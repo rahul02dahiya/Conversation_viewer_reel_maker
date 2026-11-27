@@ -19,9 +19,11 @@
 }
 .reel-stage[data-section="transition"] #bg-first,
 .reel-stage[data-section="transition"] #bg-last,
-.reel-stage[data-section="transition"] .opening-overlay,
-.reel-stage[data-section="transition"] .conversation-overlay {
+.reel-stage[data-section="transition"] .opening-overlay {
     opacity: 0;
+}
+.reel-stage[data-section="transition"] .conversation-overlay {
+    opacity: var(--conversation-opacity, 0);
 }
 
 .reel-stage[data-section="conversation"] #bg-last {
@@ -36,7 +38,16 @@
     opacity: var(--conversation-opacity, 1);
 }
 
-.reel-stage[data-section="conversation"] .participant-slot {
-    opacity: var(--avatar-opacity, 1);
-    transform: translate(-50%, -50%) scale(var(--avatar-scale, 1));
+.reel-stage .participant-slot {
+    opacity: var(--avatar-opacity, 0);
+    transform: translate(-50%, -50%) scale(var(--avatar-scale, 0.92));
+}
+
+html.overlay-only,
+body.overlay-only,
+body.overlay-only .reel-stage {
+    background: transparent !important;
+}
+body.overlay-only .bg-layer {
+    opacity: 0 !important;
 }

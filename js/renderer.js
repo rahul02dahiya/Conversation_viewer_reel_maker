@@ -90,7 +90,7 @@ function runFfmpeg(args) {
     });
 }
 
-async function renderFramesToClip(page, { startTime, frameCount, fps, outPath, label }) {
+async function renderFramesToClip(page, { startTime, frameCount, fps, outPath, label, transparent = false }) {
     const args = [
         "-y",
         "-f", "image2pipe",
@@ -98,10 +98,8 @@ async function renderFramesToClip(page, { startTime, frameCount, fps, outPath, l
         "-framerate", String(fps),
         "-i", "-",
         "-r", String(fps),
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-preset", "fast",
-        "-crf", "12",
+        "-c:v", transparent ? "png" : "libx264",
+        ...(transparent ? ["-pix_fmt", "rgba"] : ["-pix_fmt", "yuv420p", "-preset", "fast", "-crf", "12"]),
         outPath,
     ];
 
@@ -119,16 +117,29 @@ async function renderFramesToClip(page, { startTime, frameCount, fps, outPath, l
         });
     });
 
+    if (transparent) {
+        await page.evaluate(() => {
+            document.documentElement.classList.add("overlay-only");
+            document.body.classList.add("overlay-only");
+        });
+    }
+
     for (let i = 0; i < frameCount; i++) {
         const t = startTime + i / fps;
         await page.evaluate((time) => window.renderAtTime(time), t);
-        const pngBuffer = await page.screenshot({ type: "png" });
+        const pngBuffer = await page.screenshot({ type: "png", omitBackground: transparent });
         if (!ffmpeg.stdin.write(pngBuffer)) {
             await new Promise((r) => ffmpeg.stdin.once("drain", r));
         }
         if ((i + 1) % 30 === 0 || i + 1 === frameCount) {
             process.stdout.write(`\r[${label}] ${i + 1}/${frameCount} frames`);
         }
+    }
+    if (transparent) {
+        await page.evaluate(() => {
+            document.documentElement.classList.remove("overlay-only");
+            document.body.classList.remove("overlay-only");
+        });
     }
     process.stdout.write("\n");
     ffmpeg.stdin.end();
@@ -150,6 +161,7 @@ async function main() {
         "assets/background.mp4",
         "assets/bg-first.png",
         "assets/bg-last.png",
+        "assets/brandLogoWithName.png",
         "assets/Glossy Blue User Badge.png",
         "assets/Glossy Orange Meditating Monk Badge.png",
     ];
@@ -221,11 +233,48 @@ async function main() {
 
         if (secBDur > 0.01) {
             const bgPath = path.resolve(ROOT_DIR, meta.transitionVideo);
-            const idx = videoInputs.length;
-            videoFilterParts.push(
-                `[${idx}:v]scale=1080:1920:flags=lanczos,fps=${fps},setsar=1,trim=duration=${secBDur.toFixed(3)},setpts=PTS-STARTPTS[v${idx}]`
-            );
-            videoInputs.push(bgPath);
+            const preAudioDur = Math.max(0, Math.min(secBEnd, meta.conversationStart) - secBStart);
+            const postAudioStart = Math.max(secBStart, meta.conversationStart);
+            const postAudioFrames = Math.max(0, Math.round((secBEnd - postAudioStart) * fps));
+
+            if (preAudioDur > 0.01) {
+                const brandOverlayPath = path.join(tmpDir, "brand-corner.png");
+                await page.locator("#brand-corner").screenshot({ path: brandOverlayPath, omitBackground: true });
+
+                const bgIdx = videoInputs.length;
+                videoInputs.push(bgPath);
+                const brandIdx = videoInputs.length;
+                videoInputs.push(brandOverlayPath);
+
+                videoFilterParts.push(
+                    `[${bgIdx}:v]scale=1080:1920:flags=lanczos,fps=${fps},setsar=1,trim=start=0:duration=${preAudioDur.toFixed(3)},setpts=PTS-STARTPTS[bgpre]`,
+                    `[bgpre][${brandIdx}:v]overlay=48:48:shortest=0[v${bgIdx}]`
+                );
+            }
+
+            if (postAudioFrames > 0) {
+                const ovPath = path.join(tmpDir, "secB-overlay.mov");
+                await renderFramesToClip(page, {
+                    startTime: postAudioStart,
+                    frameCount: postAudioFrames,
+                    fps,
+                    outPath: ovPath,
+                    label: "Transition+Conv",
+                    transparent: true,
+                });
+
+                const bgIdx = videoInputs.length;
+                videoInputs.push(bgPath);
+                const ovIdx = videoInputs.length;
+                videoInputs.push(ovPath);
+                const bgStart = Math.max(0, postAudioStart - secBStart);
+                const bgDur = postAudioFrames / fps;
+
+                videoFilterParts.push(
+                    `[${bgIdx}:v]scale=1080:1920:flags=lanczos,fps=${fps},setsar=1,trim=start=${bgStart.toFixed(3)}:duration=${bgDur.toFixed(3)},setpts=PTS-STARTPTS[bgpost]`,
+                    `[bgpost][${ovIdx}:v]overlay=0:0:shortest=1[v${bgIdx}]`
+                );
+            }
         }
 
         if (secCFrames > 0) {
@@ -241,10 +290,17 @@ async function main() {
             videoInputs.push(secCPath);
         }
 
-        const concatInputs = videoInputs.map((_, idx) => `[v${idx}]`).join("");
+        const segmentTags = [];
+        let nextTagIdx = 0;
+        for (const part of videoFilterParts) {
+            const m = part.match(/\[v(\d+)\]$/);
+            if (m) segmentTags.push(`[v${m[1]}]`);
+            nextTagIdx++;
+        }
+        const concatInputs = segmentTags.join("");
         const filterLines = [
             ...videoFilterParts,
-            `${concatInputs}concat=n=${videoInputs.length}:v=1:a=0[v]`,
+            `${concatInputs}concat=n=${segmentTags.length}:v=1:a=0[v]`,
         ];
 
         const audioInputPath = path.resolve(ROOT_DIR, meta.audioFile);

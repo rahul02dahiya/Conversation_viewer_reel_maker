@@ -87,7 +87,9 @@ function renderAtTime(t) {
         if (!isPlaying || Math.abs(bgVideo.currentTime - tl.transitionTime) > 0.15) {
             bgVideo.currentTime = tl.transitionTime;
         }
-    } else if (tl.section === "conversation") {
+    }
+
+    if (tl.showConversationOverlay) {
         reelStage.style.setProperty("--avatar-opacity", tl.avatarOpacity.toFixed(3));
         reelStage.style.setProperty("--avatar-scale", tl.avatarScale.toFixed(3));
         reelStage.style.setProperty("--conversation-opacity", tl.overlayOpacity.toFixed(3));
@@ -95,6 +97,9 @@ function renderAtTime(t) {
         const audioState = analyser.getStateAt(clamped);
         reelStage.dataset.activeSpeaker = audioState.activeSpeaker || "none";
         centralWaveform.render(audioState.bars, audioState.color);
+    } else {
+        reelStage.style.setProperty("--conversation-opacity", "0");
+        reelStage.dataset.activeSpeaker = "none";
     }
 
     if (!isRenderMode) {
@@ -165,7 +170,7 @@ async function startPlayback() {
 
     const { ringtoneEnabled, ringtoneStart, ringtoneDuration, ringtoneVolume, conversationVolume } =
         ANIMATION_CONFIG.audio;
-    const ringEnd = Math.min(callTimeline.openingEnd, ringtoneStart + ringtoneDuration);
+    const ringEnd = ringtoneStart + ringtoneDuration;
 
     if (ringtoneEnabled && ringBuffer && currentOffset < ringEnd) {
         const delay = Math.max(0, ringtoneStart - currentOffset);
@@ -249,6 +254,7 @@ async function init() {
             openingHoldDuration: ANIMATION_CONFIG.video.openingHoldDuration,
             transitionDuration: ANIMATION_CONFIG.video.transitionDuration,
             outroHoldDuration: ANIMATION_CONFIG.video.outroHoldDuration,
+            conversationStartOffset: ANIMATION_CONFIG.audio.conversationStartOffset,
             audioDuration: audioBuffer.duration,
             avatarRevealDuration: ANIMATION_CONFIG.layout.avatarRevealDuration,
         });
